@@ -25,6 +25,8 @@
   },
   "homepage": "https://github.com/clinch/HashtagResponder",
   "dependencies": {
+    "debug": "^2.2.0",
+    "nconf": "^0.8.2",
     "node-twitter-api": "^1.6.1"
   }
 }

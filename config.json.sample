@@ -1,0 +1,7 @@
+{
+    "consumerKey": "ConsumerKey",
+    "consumerSecret": "ConsumerSecret",
+    "accessToken": "AppAccessToken",
+    "accessTokenSecret": "AppAccessKey",
+    "callback" : ""
+}
