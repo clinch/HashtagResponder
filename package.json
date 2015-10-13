@@ -1,0 +1,30 @@
+{
+  "name": "hashtag-responder",
+  "version": "0.0.1",
+  "description": "A Node.js application that will automatically respond to any tweets using a specific hashtag.",
+  "main": "hashtag-responder.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/clinch/HashtagResponder.git"
+  },
+  "keywords": [
+    "twitter",
+    "tweet",
+    "hashtag",
+    "autoresponse",
+    "autoresponder",
+    "reply"
+  ],
+  "author": "Chris Inch <npm@chrisinch.com> (http://www.chrisinch.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/clinch/HashtagResponder/issues"
+  },
+  "homepage": "https://github.com/clinch/HashtagResponder",
+  "dependencies": {
+    "node-twitter-api": "^1.6.1"
+  }
+}
