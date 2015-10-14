@@ -5,8 +5,10 @@ var twitterAPI = require('node-twitter-api'),
     nconf = require('nconf'), 
     debug = require('debug')('hashtag');
 
+const CONFIG_PATH = 'config.json';
+
 nconf.argv()
-   .file({ file: 'config.json' });
+   .file({ file: CONFIG_PATH });
 
 let twitter = new twitterAPI({
     consumerKey: nconf.get('consumerKey'),
@@ -14,7 +16,7 @@ let twitter = new twitterAPI({
     callback: nconf.get('callback')
 });
 
-twitter.search
+twitter.search(
 	{q: nconf.get('searchQuery')}, 
 	nconf.get('accessToken'),
 	nconf.get('accessTokenSecret'),
