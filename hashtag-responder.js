@@ -33,7 +33,7 @@ let twitter = new twitterAPI({
 
 getAuthenticatedUser()
 	.then(function(screenName) {
-		console.log(`Hey there ${screenName}`);
+		debug(`Hey there ${screenName}`);
 		
 		myScreenName = screenName;
 		return getTweets();
@@ -122,6 +122,7 @@ function respondToTweets(tweetArray) {
 	// this next iteration.
 	if (maxId != 0) {
 		client.set(`${REDIS_PREFIX}LastId`, maxId);
+		debug(`Most recent Tweet id is ${maxId}`);
 	}
 
 }
