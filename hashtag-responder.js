@@ -18,6 +18,7 @@ const REDIS_PREFIX = "hashtag-responder:";
 let client = redis.createClient();
 client.on("error", err => console.log("Redis Error " + err));
 
+let myScreenName = '';
 
 // Read config file
 nconf.argv()
@@ -30,28 +31,64 @@ let twitter = new twitterAPI({
 });
 
 
-// Get info on currently-authenticated user
-// https://dev.twitter.com/rest/reference/get/account/settings
+getAuthenticatedUser()
+	.then(function(screenName) {
+		console.log(`Hey there ${screenName}`);
+		
+		myScreenName = screenName;
+		return getTweets();
+	})
+	.then(respondToTweets)
+	.catch(function(error) {
+		console.log(error);
+	}); 
 
 
-// Perform the twitter search.
-twitter.search(
-	{
-		q: nconf.get('searchQuery'),
-		result_type: 'recent',
-		include_entities: true,
-		count: MAX_TWEET_COUNT
-	}, 
-	nconf.get('accessToken'),
-	nconf.get('accessTokenSecret'),
-	function(error, data, response) {
-	    if (error) {
-	        debug("Something went wrong with tweet retrieval")
-	    } else {
-	    	respondToTweets(data.statuses);
-	    }
-	}
-);
+/**
+ * Gets (a promise for) the currently authenticated user from the Twitter API.	
+ * @return {Promise} A Promise for the currently authenticated user.
+ */
+function getAuthenticatedUser() {
+	return new Promise(function(resolve, reject) {
+		twitter.verifyCredentials(
+			nconf.get('accessToken'),
+			nconf.get('accessTokenSecret'),
+			function(error, data, response) {
+		    if (error) {
+		        reject(Error(error));
+		    } else {
+		        resolve(data["screen_name"]);
+		    }
+		});
+	});
+}
+
+/**
+ * Gets (a promise for) any Tweets matching our seasrch criteria
+ * @return {Promise} A Promise of a collection of Tweets matching our search
+ */
+function getTweets() {
+	return new Promise(function(resolve, reject) {
+		// Perform the twitter search.
+		twitter.search(
+			{
+				q: nconf.get('searchQuery'),
+				result_type: 'recent',
+				include_entities: true,
+				count: MAX_TWEET_COUNT
+			}, 
+			nconf.get('accessToken'),
+			nconf.get('accessTokenSecret'),
+			function(error, data, response) {
+			    if (error) {
+			        reject(Error(error));
+			    } else {
+			    	resolve(data.statuses);
+			    }
+			}
+		);
+	});
+}
 
 /**
  * Analyzes the current tweet/status array, and then responds to them.
@@ -63,16 +100,19 @@ function respondToTweets(tweetArray) {
 	let maxId = 0;
 	let screenName = '';
 
+	debug(`I got ${tweetArray.length} tweets for you.`);
+
 	for (let i = 0; i < tweetArray.length; i++) {
 		// Check to make sure this isn't a tweet that we made ourselves
-		
+		screenName = tweetArray[i].user.screen_name;
+		if (myScreenName == screenName) {
+			continue;
+		}
 
 		// Check to make sure this is an original tweet and NOT a retweet.
+		// TODO
 
-
-		screenName = `@${tweetArray[i].user.screen_name}`;
-
-		debug(screenName + ": " + tweetArray[i].text);
+		debug("@" + screenName + ": " + tweetArray[i].text);
 		if (tweetArray[i].id > maxId) {
 			maxId = tweetArray[i].id;
 		}
