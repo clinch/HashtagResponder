@@ -4,7 +4,8 @@ var twitterAPI = require('node-twitter-api'),
  	fs    = require('fs'),
     nconf = require('nconf'), 
     redis = require("redis"),
-    debug = require('debug')('hashtag');
+    debug = require('debug')('hashtag'),
+    tempTweet = require('debug')('tweet');
 
 const CONFIG_PATH = 'config.json';
 
@@ -100,20 +101,43 @@ function respondToTweets(tweetArray) {
 	let maxId = 0;
 	let screenName = '';
 
+	let currentTweet;
+
+	let photoTweetsOnly = nconf.get('photoTweetsOnly');
+
 	for (let i = 0; i < tweetArray.length; i++) {
+		currentTweet = tweetArray[i];
+
 		// Check to make sure this isn't a tweet that we made ourselves
-		screenName = tweetArray[i].user.screen_name;
+		screenName = currentTweet.user.screen_name;
 		if (myScreenName == screenName) {
 			continue;
 		}
 
 		// Check to make sure this is an original tweet and NOT a retweet.
-		if (tweetArray[i].retweeted_status != undefined) {
+		if (currentTweet.retweeted_status != undefined) {
 			continue;
 		}
 
-		if (tweetArray[i].id > maxId) {
-			maxId = tweetArray[i].id;
+		// If we only want tweets with photos, now's the time
+		if (photoTweetsOnly) {
+			if (currentTweet.entities && currentTweet.entities.media) {
+				let hasPic = false;
+				for (let j = 0; j < currentTweet.entities.media.length; j++) {
+					if (currentTweet.entities.media[j].type == 'photo') {
+						hasPic = true;
+					}
+				}
+				if (hasPic == false) {
+					continue;
+				}
+			}
+		}
+		
+		tempTweet(getResponse(currentTweet));	
+
+		if (currentTweet.id > maxId) {
+			maxId = currentTweet.id;
 		}
 	}
 
@@ -124,4 +148,34 @@ function respondToTweets(tweetArray) {
 		debug(`Most recent Tweet id is ${maxId}`);
 	}
 
+}
+
+/**
+ * Creates a response to the tweet passed as a parameter
+ * @param  {Tweet} tweet A Twitter Tweet object. https://dev.twitter.com/overview/api/tweets
+ * @return {String}       A response to send to the user
+ */
+function getResponse(tweet) {
+	let allResponses;
+	let response;
+
+	if (tweet == undefined) {
+		throw new Error('getResponse: No tweet defined.');
+	}
+
+	allResponses = nconf.get('replyWith');
+
+	if (allResponses == undefined || allResponses.length == 0) {
+		throw new Error('There are no responses defined in config file. Populate at least one response.');
+	}
+
+	response = allResponses[Math.floor(Math.random() * allResponses.length)];
+
+	response = fillTemplate(tweet, response);
+
+	return response;
+}
+
+function fillTemplate(tweet, response) {
+	return response.split('$SCREEN_NAME$').join('@' + tweet.user.screen_name);
 }
