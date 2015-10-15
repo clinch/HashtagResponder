@@ -28,3 +28,6 @@ node_modules
 
 # Don't commit individual config files
 config.json
+
+# Redis makes these ridiculous files
+dump.rdb

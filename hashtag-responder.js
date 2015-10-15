@@ -100,8 +100,6 @@ function respondToTweets(tweetArray) {
 	let maxId = 0;
 	let screenName = '';
 
-	debug(`I got ${tweetArray.length} tweets for you.`);
-
 	for (let i = 0; i < tweetArray.length; i++) {
 		// Check to make sure this isn't a tweet that we made ourselves
 		screenName = tweetArray[i].user.screen_name;
@@ -110,9 +108,10 @@ function respondToTweets(tweetArray) {
 		}
 
 		// Check to make sure this is an original tweet and NOT a retweet.
-		// TODO
+		if (tweetArray[i].retweeted_status != undefined) {
+			continue;
+		}
 
-		debug("@" + screenName + ": " + tweetArray[i].text);
 		if (tweetArray[i].id > maxId) {
 			maxId = tweetArray[i].id;
 		}
