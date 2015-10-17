@@ -4,6 +4,7 @@ var twitterAPI = require('node-twitter-api'),
  	fs    = require('fs'),
     nconf = require('nconf'), 
     redis = require("redis"),
+    process = require('process'),
     debug = require('debug')('hashtag'),
     tempTweet = require('debug')('tweet');
 
@@ -14,6 +15,15 @@ const CONFIG_PATH = 'config.json';
 const MAX_TWEET_COUNT = 15;
 
 const REDIS_PREFIX = "hashtag-responder:";
+
+let dryRun = false;
+// Watch for dry run
+if (process.argv.length > 2) {
+	if (process.argv[2] === '--dry-run') {
+		dryRun = true;
+		console.log('Dry run. Will not send any tweets, but will update database.');
+	}
+}
 
 // Set up Redis connection
 let client = redis.createClient();
@@ -131,6 +141,7 @@ function getTweets() {
 function respondToTweets(tweetArray) {
 
 	let maxId = 0;
+	let maxIdStr = "";
 	let screenName = '';
 
 	let currentTweet;
@@ -184,16 +195,17 @@ function respondToTweets(tweetArray) {
 
 		tweetOut(currentTweet, getResponse(currentTweet));	
 
-		if (currentTweet.id > maxId) {
+		if (currentTweet.id_str > maxIdStr) {
 			maxId = currentTweet.id;
+			maxIdStr = currentTweet.id_str;
 		}
 	}
 
 	// We save the max message id because we can search for messages newer than
 	// this next iteration.
-	if (maxId != 0) {
-		client.set(`${REDIS_PREFIX}LastId`, maxId);
-		debug(`Most recent Tweet id is ${maxId}`);
+	if (maxIdStr != "") {
+		client.set(`${REDIS_PREFIX}LastId`, maxIdStr);
+		debug(`Most recent Tweet id is ${maxIdStr}`);
 	}
 
 }
@@ -206,25 +218,27 @@ function respondToTweets(tweetArray) {
 function tweetOut(tweet, response) {
 
 	// Look to see if we've already responded to this tweet.
-	searchForExisting(tweet.id)
+	searchForExisting(tweet.id_str)
 		.then(() => { 
 			// Log the send.
 			client.set(`${REDIS_PREFIX}${tweet.id}`, response);
-			// Send
-			tempTweet(response);
 			
-			twitter.statuses('update', {
-					status: response,
-					in_reply_to_status_id: tweet.id
-				}, 
-				nconf.get('accessToken'),
-				nconf.get('accessTokenSecret'),
-				function(error, data, response) {
-					if (error) {
-						console.log(error);
+			// Send
+			tempTweet("response to " + tweet.id_str + " " + response);
+			if (!dryRun) {
+				twitter.statuses('update', {
+						status: response,
+						in_reply_to_status_id: tweet.id_str
+					}, 
+					nconf.get('accessToken'),
+					nconf.get('accessTokenSecret'),
+					function(error, data, response) {
+						if (error) {
+							console.log(error);
+						}
 					}
-				}
-			);
+				);
+			}
 
 		})
 		.catch(error => { debug(error) });
