@@ -31,8 +31,17 @@ let twitter = new twitterAPI({
     callback: nconf.get('callback')
 });
 
+let maxId = 0;
 
-getAuthenticatedUser()
+searchForMaxId()
+	.then(function(result) {
+		if (result === null) {
+			console.log('There was no previous Max ID stored. Is this the first time you are running? Be careful out there.');
+		} else {
+			maxId = result;
+		}
+		return getAuthenticatedUser();
+	})
 	.then(function(screenName) {
 		debug(`Hey there ${screenName}`);
 		
@@ -44,6 +53,23 @@ getAuthenticatedUser()
 		console.log(error);
 	}); 
 
+/**
+ * Searches Redis for a previous maximum tweet Id. To be efficient, only search for 
+ * tweets newer than this. Promise will resolve as long as search does not error. 
+ * 
+ * @return {Promise}         A promise which will resolve with data
+ */
+function searchForMaxId() {
+	return new Promise(function(resolve, reject) {
+		client.get(`${REDIS_PREFIX}LastId`, function(err, result) {
+			if (err) {
+				reject(Error(err));
+			} else {
+				resolve(result);
+			}
+		});
+	});
+}
 
 /**
  * Gets (a promise for) the currently authenticated user from the Twitter API.	
@@ -70,14 +96,20 @@ function getAuthenticatedUser() {
  */
 function getTweets() {
 	return new Promise(function(resolve, reject) {
-		// Perform the twitter search.
-		twitter.search(
-			{
+		let query = {
 				q: nconf.get('searchQuery'),
 				result_type: 'recent',
 				include_entities: true,
 				count: MAX_TWEET_COUNT
-			}, 
+			};
+		if (maxId > 0) {
+			debug(`Only searching for tweets newer than ${maxId}`);
+			query.since_id = maxId;
+		}
+
+		// Perform the twitter search.
+		twitter.search(
+			query, 
 			nconf.get('accessToken'),
 			nconf.get('accessTokenSecret'),
 			function(error, data, response) {
@@ -177,9 +209,23 @@ function tweetOut(tweet, response) {
 	searchForExisting(tweet.id)
 		.then(() => { 
 			// Log the send.
-			client.set(REDIS_PREFIX + tweet.id, response);
+			client.set(`${REDIS_PREFIX}${tweet.id}`, response);
 			// Send
 			tempTweet(response);
+			
+			twitter.statuses('update', {
+					status: response,
+					in_reply_to_status_id: tweet.id
+				}, 
+				nconf.get('accessToken'),
+				nconf.get('accessTokenSecret'),
+				function(error, data, response) {
+					if (error) {
+						console.log(error);
+					}
+				}
+			);
+
 		})
 		.catch(error => { debug(error) });
 }
@@ -193,7 +239,7 @@ function tweetOut(tweet, response) {
  */
 function searchForExisting(tweetId) {
 	return new Promise(function(resolve, reject) {
-		client.get(REDIS_PREFIX + tweetId, function(err, result) {
+		client.get(`${REDIS_PREFIX}${tweetId}`, function(err, result) {
 			if (err) {
 				reject(Error(err));
 			} else {
@@ -233,6 +279,12 @@ function getResponse(tweet) {
 	return response;
 }
 
+/**
+ * Replaces keywords with appropriate filler text
+ * @param  {Tweet} tweet    The original full Tweet 
+ * @param  {String} response The template response.
+ * @return {String}          The template populated with appropriate values
+ */
 function fillTemplate(tweet, response) {
 	return response.split('$SCREEN_NAME$').join('@' + tweet.user.screen_name);
 }
