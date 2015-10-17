@@ -31,8 +31,17 @@ let twitter = new twitterAPI({
     callback: nconf.get('callback')
 });
 
+let maxId = 0;
 
-getAuthenticatedUser()
+searchForMaxId()
+	.then(function(result) {
+		if (result === null) {
+			console.log('There was no previous Max ID stored. Is this the first time you are running? Be careful out there.');
+		} else {
+			maxId = result;
+		}
+		return getAuthenticatedUser();
+	})
 	.then(function(screenName) {
 		debug(`Hey there ${screenName}`);
 		
@@ -44,6 +53,23 @@ getAuthenticatedUser()
 		console.log(error);
 	}); 
 
+/**
+ * Searches Redis for a previous maximum tweet Id. To be efficient, only search for 
+ * tweets newer than this. Promise will resolve as long as search does not error. 
+ * 
+ * @return {Promise}         A promise which will resolve with data
+ */
+function searchForMaxId() {
+	return new Promise(function(resolve, reject) {
+		client.get(`${REDIS_PREFIX}LastId`, function(err, result) {
+			if (err) {
+				reject(Error(err));
+			} else {
+				resolve(result);
+			}
+		});
+	});
+}
 
 /**
  * Gets (a promise for) the currently authenticated user from the Twitter API.	
@@ -70,14 +96,20 @@ function getAuthenticatedUser() {
  */
 function getTweets() {
 	return new Promise(function(resolve, reject) {
-		// Perform the twitter search.
-		twitter.search(
-			{
+		let query = {
 				q: nconf.get('searchQuery'),
 				result_type: 'recent',
 				include_entities: true,
 				count: MAX_TWEET_COUNT
-			}, 
+			};
+		if (maxId > 0) {
+			debug(`Only searching for tweets newer than ${maxId}`);
+			query.since_id = maxId;
+		}
+
+		// Perform the twitter search.
+		twitter.search(
+			query, 
 			nconf.get('accessToken'),
 			nconf.get('accessTokenSecret'),
 			function(error, data, response) {
@@ -102,6 +134,7 @@ function respondToTweets(tweetArray) {
 	let screenName = '';
 
 	let currentTweet;
+	let excludeScreenNames = nconf.get('excludeScreenNames');
 
 	let photoTweetsOnly = nconf.get('photoTweetsOnly');
 
@@ -112,6 +145,21 @@ function respondToTweets(tweetArray) {
 		screenName = currentTweet.user.screen_name;
 		if (myScreenName == screenName) {
 			continue;
+		}
+
+		// Leave out any users that we don't want to tweet to.
+		let matched = false;
+		if (excludeScreenNames) {
+			for (let i = 0; i < excludeScreenNames.length; i++) {
+				if (excludeScreenNames[i] == screenName) {
+					matched = true;
+					break;
+				}
+			}
+			if (matched) {
+				debug(`Excluding ${screenName}`);
+				continue;
+			}
 		}
 
 		// Check to make sure this is an original tweet and NOT a retweet.
@@ -133,8 +181,8 @@ function respondToTweets(tweetArray) {
 				}
 			}
 		}
-		
-		tempTweet(getResponse(currentTweet));	
+
+		tweetOut(currentTweet, getResponse(currentTweet));	
 
 		if (currentTweet.id > maxId) {
 			maxId = currentTweet.id;
@@ -148,6 +196,61 @@ function respondToTweets(tweetArray) {
 		debug(`Most recent Tweet id is ${maxId}`);
 	}
 
+}
+
+/**
+ * Sends the response out to the Twitterverse.
+ * @param  {Tweet} tweet    The full, original tweet
+ * @param  {String} response The response to send to the original tweeter.
+ */
+function tweetOut(tweet, response) {
+
+	// Look to see if we've already responded to this tweet.
+	searchForExisting(tweet.id)
+		.then(() => { 
+			// Log the send.
+			client.set(`${REDIS_PREFIX}${tweet.id}`, response);
+			// Send
+			tempTweet(response);
+			
+			twitter.statuses('update', {
+					status: response,
+					in_reply_to_status_id: tweet.id
+				}, 
+				nconf.get('accessToken'),
+				nconf.get('accessTokenSecret'),
+				function(error, data, response) {
+					if (error) {
+						console.log(error);
+					}
+				}
+			);
+
+		})
+		.catch(error => { debug(error) });
+}
+
+/**
+ * Searches Redis for an existing tweet that we have responded to. Promise
+ * will resolve if no previous tweet has been found. Will reject if found or 
+ * if error.
+ * @param  {Number} tweetId The id associated with the Tweet.
+ * @return {Promise}         A promise which will resolve.
+ */
+function searchForExisting(tweetId) {
+	return new Promise(function(resolve, reject) {
+		client.get(`${REDIS_PREFIX}${tweetId}`, function(err, result) {
+			if (err) {
+				reject(Error(err));
+			} else {
+				if (result === null) {
+					resolve();
+				} else {
+					reject(`Response already sent to Tweet ${tweetId}`);
+				}
+			}
+		});
+	});
 }
 
 /**
@@ -176,6 +279,12 @@ function getResponse(tweet) {
 	return response;
 }
 
+/**
+ * Replaces keywords with appropriate filler text
+ * @param  {Tweet} tweet    The original full Tweet 
+ * @param  {String} response The template response.
+ * @return {String}          The template populated with appropriate values
+ */
 function fillTemplate(tweet, response) {
 	return response.split('$SCREEN_NAME$').join('@' + tweet.user.screen_name);
 }
