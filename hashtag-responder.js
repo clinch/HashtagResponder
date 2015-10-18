@@ -67,6 +67,8 @@ searchForMaxId()
 		console.log(error);
 	}); 
 
+setTimeout(() => client.quit(), 5000);
+
 /**
  * Searches Redis for a previous maximum tweet Id. To be efficient, only search for 
  * tweets newer than this. Promise will resolve as long as search does not error. 
