@@ -14,8 +14,6 @@ const CONFIG_PATH = 'config.json';
 // which starts your client responding. 
 const MAX_TWEET_COUNT = 15;
 
-const REDIS_PREFIX = "hashtag-responder:";
-
 let dryRun = false;
 // Watch for dry run
 if (process.argv.length > 2) {
@@ -34,6 +32,12 @@ let myScreenName = '';
 // Read config file
 nconf.argv()
    .file({ file: CONFIG_PATH });
+
+// Check
+let redisPrefix = "hashtag-responder:";
+if (nconf.get('redisPrefix')) {
+	redisPrefix = nconf.get('redisPrefix');
+}
 
 let twitter = new twitterAPI({
     consumerKey: nconf.get('consumerKey'),
@@ -71,7 +75,7 @@ searchForMaxId()
  */
 function searchForMaxId() {
 	return new Promise(function(resolve, reject) {
-		client.get(`${REDIS_PREFIX}LastId`, function(err, result) {
+		client.get(`${redisPrefix}LastId`, function(err, result) {
 			if (err) {
 				reject(Error(err));
 			} else {
@@ -204,7 +208,7 @@ function respondToTweets(tweetArray) {
 	// We save the max message id because we can search for messages newer than
 	// this next iteration.
 	if (maxIdStr != "") {
-		client.set(`${REDIS_PREFIX}LastId`, maxIdStr);
+		client.set(`${redisPrefix}LastId`, maxIdStr);
 		debug(`Most recent Tweet id is ${maxIdStr}`);
 	}
 
@@ -221,7 +225,7 @@ function tweetOut(tweet, response) {
 	searchForExisting(tweet.id_str)
 		.then(() => { 
 			// Log the send.
-			client.set(`${REDIS_PREFIX}${tweet.id}`, response);
+			client.set(`${redisPrefix}${tweet.id}`, response);
 			
 			// Send
 			tempTweet("response to " + tweet.id_str + " " + response);
@@ -253,7 +257,7 @@ function tweetOut(tweet, response) {
  */
 function searchForExisting(tweetId) {
 	return new Promise(function(resolve, reject) {
-		client.get(`${REDIS_PREFIX}${tweetId}`, function(err, result) {
+		client.get(`${redisPrefix}${tweetId}`, function(err, result) {
 			if (err) {
 				reject(Error(err));
 			} else {

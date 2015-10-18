@@ -4,6 +4,7 @@
     "accessToken": "AppAccessToken",
     "accessTokenSecret": "AppAccessKey",
     "callback": "",
+    "redisPrefix": "hashtag-responder:",
     "searchQuery": "#searchForThisHashag",
     "photoTweetsOnly": true,
     "replyWith" : [
