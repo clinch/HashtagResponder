@@ -39,6 +39,8 @@ if (nconf.get('redisPrefix')) {
 	redisPrefix = nconf.get('redisPrefix');
 }
 
+let retweetOriginal = nconf.get('retweetOriginal');
+
 let twitter = new twitterAPI({
     consumerKey: nconf.get('consumerKey'),
     consumerSecret: nconf.get('consumerSecret'),
@@ -232,6 +234,19 @@ function tweetOut(tweet, response) {
 			// Send
 			tempTweet("response to " + tweet.id_str + " " + response);
 			if (!dryRun) {
+				if (retweetOriginal) {
+					twitter.statuses('retweet', {
+						id: tweet.id_str
+					}, 
+					nconf.get('accessToken'),
+					nconf.get('accessTokenSecret'),
+					function(error, data, response) {
+						if (error) {
+							console.log(error);
+						}
+					}
+					);
+				}
 				twitter.statuses('update', {
 						status: response,
 						in_reply_to_status_id: tweet.id_str

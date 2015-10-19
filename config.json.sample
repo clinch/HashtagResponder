@@ -7,6 +7,7 @@
     "redisPrefix": "hashtag-responder:",
     "searchQuery": "#searchForThisHashag",
     "photoTweetsOnly": true,
+    "retweetOriginal": true,
     "replyWith" : [
     	"Hey $SCREEN_NAME$, thanks for the shout out!",
     	"Looking good $SCREEN_NAME$!"
