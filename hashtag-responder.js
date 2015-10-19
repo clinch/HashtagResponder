@@ -8,7 +8,7 @@ var twitterAPI = require('node-twitter-api'),
     debug = require('debug')('hashtag'),
     tempTweet = require('debug')('tweet');
 
-const CONFIG_PATH = 'config.json';
+let configPath = 'config.json';
 
 // Use MAX_TWEET_COUNT as a safety measure in case you get a huge search result
 // which starts your client responding. 
@@ -17,9 +17,17 @@ const MAX_TWEET_COUNT = 15;
 let dryRun = false;
 // Watch for dry run
 if (process.argv.length > 2) {
-	if (process.argv[2] === '--dry-run') {
-		dryRun = true;
-		console.log('Dry run. Will not send any tweets, but will update database.');
+	for (let i = 0; i < process.argv.length; i++) {
+		if (process.argv[i] === '--dry-run') {
+			dryRun = true;
+			console.log('Dry run. Will not send any tweets, but will update database.');
+		}
+		if (process.argv[i] == '--config') {
+			configPath = process.argv[i + 1];
+			if (!configPath) {
+				console.log('Usage: $ node hashtag-responder.js --config /path/to/config.json');
+			}
+		}
 	}
 }
 
@@ -31,7 +39,7 @@ let myScreenName = '';
 
 // Read config file
 nconf.argv()
-   .file({ file: CONFIG_PATH });
+   .file({ file: configPath });
 
 // Check
 let redisPrefix = "hashtag-responder:";
